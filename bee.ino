@@ -22,7 +22,9 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Fonts/FreeSansBold24pt7b.h>
+#include <Fonts/FreeSansBold18pt7b.h>
+#include <Fonts/FreeSansBold9pt7b.h>
+
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
@@ -68,6 +70,7 @@ void setup() {
   
   display.clearDisplay();
   speedValue();    // Print the value of speed
+  speedValueDecimal();    // Print the value of speed
   speedUnit();     // Print the unit of speed
   batteryStatus(); // Print the battery status
   display.display();
@@ -80,16 +83,25 @@ void loop() {
 void speedValue(void) {
   
 
-  display.setTextSize(4.5);
-  //display.setFont(&FreeSansBold24pt7b);
+  display.setTextSize(1);
+  display.setFont(&FreeSansBold18pt7b);
   display.setTextColor(WHITE);        // Draw white text
-  display.setCursor(0,0);             // Start at top-left corner
-  display.println(F("25.6"));
+  display.setCursor(0,31);             // Start at top-left corner
+  display.println(F("25"));
+}
+
+void speedValueDecimal(void) {
+  display.setTextSize(1);
+  display.setTextColor(WHITE);        // Draw white text
+  display.setFont(&FreeSansBold9pt7b);
+  display.setCursor(37,31);             // Start at top-left corner
+  display.println(F(".4"));
 }
 
 void speedUnit(void) {
   display.setTextSize(1);
-  display.setCursor(100,18);
+  display.setFont();
+  display.setCursor(60,24);
   display.println(F("km/h"));
 }
 
@@ -100,17 +112,18 @@ void batteryStatus(void) {
 //if ((now - prev > interval)) { //Determine whether to start a voltage and screen update
 
   //if(flash == 0){flash = 1;}else{flash = 0;} //Toggle flash flag for icon blinking later
-  voltage = 3500;
+  voltage = 3800;
   //display.setCursor(100, 0); //Position text cursor for voltage display
   //display.print(voltage); //Write voltage to display buffer
   //display.print(" milliVolts");
   
   //Display 4-level battery gauge - flashes at lowest level
-  display.fillRect(120,2,3,8,WHITE); //Draw battery end button
-  if(voltage > 3700){display.fillRect(100,0,20,12,WHITE);}
-  if(voltage > 3600 && voltage <=3700){display.drawRect(100,0,20,12,WHITE); display.fillRect(100,0,18,12,WHITE);}
-  if(voltage > 3500 && voltage <=3600){display.drawRect(100,0,20,12,WHITE); display.fillRect(100,0,12,12,WHITE);}
-  if(voltage > 3400 && voltage <=3500){display.drawRect(100,0,20,12,WHITE);}
+  display.fillRect(116,8,6,2,WHITE); //Draw battery end button
+  //if(voltage > 3700){display.fillRect(114,10,10,22,WHITE);}
+  if(voltage > 3700){display.drawRect(114,10,10,22,WHITE); display.fillTriangle(116,23,119,23,119,19,WHITE); display.fillTriangle(116,21,116,28,116,21,WHITE);}
+  if(voltage > 3600 && voltage <=3700){display.drawRect(114,10,10,22,WHITE); display.fillRect(114,10,10,22,WHITE);}
+  if(voltage > 3500 && voltage <=3600){display.drawRect(114,10,10,22,WHITE); display.fillRect(114,10,12,12,WHITE);}
+  if(voltage > 3400 && voltage <=3500){display.drawRect(114,10,10,22,WHITE);}
   //if(voltage <=3400 && flash){display.drawRect(100,0,120,8,WHITE);} //Flash battery icon at lowest level
   //if(voltage <=3400 && flash){display.fillRect(120,3,102,2,WHITE);} //Flash battery end button
   
