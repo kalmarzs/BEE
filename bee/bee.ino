@@ -15,18 +15,26 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 float start, finished;
 float elapsed, time;
 float circMetric=2.093; // wheel circumference (in meters)
-float circImperial; // using 1 kilometer = 0.621371192 miles
-float speedk, speedm;    // holds calculated speed vales in metric and imperial
+float speedk;    // holds calculated speed vales in metric and imperial
+
+long readVcc() { long result; // Read 1.1V reference against AVcc 
+ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle 
+ADCSRA |= _BV(ADSC); // Convert 
+while (bit_is_set(ADCSRA,ADSC)); 
+result = ADCL; 
+result |= ADCH<<8; 
+result = 1125300L / result; // Back-calculate AVcc in mV 
+return result; 
+}
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("BEE Starting...");
+  Serial.print("BEE Starting...");
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
-  circImperial=circMetric*.62137;
   attachInterrupt(digitalPinToInterrupt(2), speedCalc, RISING); // interrupt called when sensors sends digital 2 high (every wheel rotation)
   start=millis();
   Serial.println("BEE started."); 
@@ -35,10 +43,12 @@ void setup() {
 void loop() {
   Serial.print("Speed:");
   Serial.println(int(speedk));
+  Serial.print("Voltage: ");
+  Serial.println(long(readVcc));
+  
   display.clearDisplay();
   speedValue(int(speedk));    // Print the initial value of speed
-  speedUnit();     // Print the unit of speed
-  batteryStatus(3454); // Print the battery status
+  batteryStatus(readVcc); // Print the battery status
   display.display();
 }
 
@@ -58,7 +68,6 @@ void speedCalc()
     speedk=(3600*circMetric)/elapsed; 
 
     //calculate speed in mph
-    speedm=(3600*circImperial)/elapsed; 
     }
 }
 
@@ -68,13 +77,13 @@ void speedValue(int speed) {
   display.setTextColor(WHITE);        // Draw white text
   display.setCursor(0,31);             // Start at top-left corner
   display.println(String(speed));
-}
-
-void speedUnit(void) {
   display.setTextSize(1);
   display.setFont();
   display.setCursor(60,24);
   display.println(F("km/h"));
+  display.setCursor(60,0);
+  display.print(long(readVcc));
+  display.println(" mV");
 }
 
 void batteryStatus(long voltage) {
