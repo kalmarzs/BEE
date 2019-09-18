@@ -16,6 +16,7 @@ float start, finished;
 float elapsed, time;
 float circMetric=2.093; // wheel circumference (in meters)
 float speedk;    // holds calculated speed vales in metric and imperial
+float voltage;
 
 long readVcc() { long result; // Read 1.1V reference against AVcc 
 ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle 
@@ -41,10 +42,14 @@ void setup() {
 }
 
 void loop() {
+  int sensorValue = analogRead(A0);
+  voltage = round(sensorValue * 5.0*10)/10.0;
   Serial.print("Speed:");
   Serial.println(int(speedk));
   Serial.print("Voltage: ");
   Serial.println(long(readVcc));
+  Serial.print("Battery: ");
+  Serial.print(float(voltage));
   
   display.clearDisplay();
   speedValue(int(speedk));    // Print the initial value of speed
@@ -67,7 +72,6 @@ void speedCalc()
     //calculate speed in km/h
     speedk=(3600*circMetric)/elapsed; 
 
-    //calculate speed in mph
     }
 }
 
@@ -83,6 +87,9 @@ void speedValue(int speed) {
   display.println(F("km/h"));
   display.setCursor(60,0);
   display.print(long(readVcc));
+  display.println(" mV");
+  display.setCursor(60,10);
+  display.print(float(voltage));
   display.println(" mV");
 }
 
