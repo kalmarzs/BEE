@@ -11,12 +11,18 @@
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#define LOGO_HEIGHT   32
+#define LOGO_WIDTH    54
+#define buttonLeft 5
+#define buttonRight 4
 
 float start, finished;
 float elapsed, time;
 float circMetric=2.093; // wheel circumference (in meters)
 float speedk;    // holds calculated speed vales in metric and imperial
 long voltage;
+boolean buttonStateLeft, buttonStateRight;
+
 
 long readVcc() { long result; // Read 1.1V reference against AVcc 
 ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle 
@@ -28,6 +34,71 @@ result = 1125300L / result; // Back-calculate AVcc in mV
 return result; 
 }
 
+int redPin= 3;
+int greenPin = 6;
+int bluePin = 9;
+
+static const unsigned char PROGMEM logo_bmp[] = {
+  B00000000, B00000011, B00000000, B00000000, B00000000, B00000000, B000000,
+  B00000000, B00000011, B11111000, B00000000, B00000000, B00000000, B000000,
+  B00000000, B00000011, B11111000, B00000001, B11111000, B00000000, B000000,
+  B00000000, B00000000, B11000000, B00000000, B11000000, B00000000, B000000,
+  B00000000, B00000000, B01000000, B00000000, B01000000, B00000000, B000000,
+  B00000000, B00000000, B01000000, B00000000, B01100000, B00000000, B000000,
+  B00000000, B00000000, B01111111, B11111111, B11100000, B00000000, B000000,
+  B00000000, B00000000, B11100000, B00000000, B00110000, B00000000, B000000,
+  B00000000, B00000000, B10100000, B00000000, B00010000, B00000000, B000000,
+  B00000000, B00000000, B10110000, B00000000, B00111000, B00000000, B000000,
+  B00000000, B00000001, B10010000, B00000000, B01101000, B00000000, B000000,
+  B00000000, B01110001, B00010000, B00000000, B11001001, B11000000, B000000,
+  B00000011, B11111111, B00011000, B00000000, B10001111, B11111000, B000000,
+  B00001110, B00000011, B10001000, B00000001, B10111100, B00001110, B000000,
+  B00011000, B00000010, B11001000, B00000011, B01100110, B00000011, B000000,
+  B00110000, B00000110, B01100100, B00000110, B11000010, B00000001, B100000,
+  B01100000, B00000100, B00100100, B00000100, B10000011, B00000000, B110000,
+  B01000000, B00001100, B00110110, B00001101, B10000001, B00000000, B010000,
+  B11000000, B00001000, B00010010, B00011001, B00000001, B10000000, B011000,
+  B11000000, B00001000, B00010010, B00110001, B00000000, B10000000, B011000,
+  B11000000, B00011000, B00011011, B01100011, B00000000, B11000000, B011000,
+  B10000000, B01111111, B10011001, B01100011, B00000000, B11100000, B001000,
+  B10000000, B01110011, B11111111, B11000011, B00000000, B11000000, B001000,
+  B11000000, B00000000, B00011000, B11000011, B00000000, B00000000, B011000,
+  B11000000, B00000000, B00010000, B11000001, B00000000, B00000000, B011000,
+  B01000000, B00000000, B00110001, B11100001, B10000000, B00000000, B010000,
+  B01100000, B00000000, B00110000, B00000001, B10000000, B00000000, B110000,
+  B00110000, B00000000, B01100000, B00000000, B11000000, B00000001, B100000,
+  B00011000, B00000000, B11000000, B00000000, B01100000, B00000011, B000000,
+  B00001100, B00000001, B10000000, B00000000, B00110000, B00000110, B000000,
+  B00000111, B10011111, B00000000, B00000000, B00011111, B00111100, B000000,
+  B00000001, B11111100, B00000000, B00000000, B00000111, B11110000, B000000
+};
+
+void setColor(int redValue, int greenValue, int blueValue) {
+analogWrite(redPin, redValue);
+analogWrite(greenPin, greenValue);
+analogWrite(bluePin, blueValue);
+}
+
+void turnLeft() {
+  for (int i = 0; i <= 5; i++) {
+  setColor(0, 255, 0);
+  delay (750);
+  setColor(0, 0, 0);
+  delay (750);
+  }
+  setColor(0, 0, 0);
+}
+
+void turnRight() {
+  for (int i = 0; i <= 5; i++) {
+  setColor(0, 0, 255);
+  delay (750);
+  setColor(0, 0, 0);
+  delay (750);
+  }
+  setColor(0, 0, 0);
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.print("BEE Starting...");
@@ -36,25 +107,50 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
+  bootSplash();
   attachInterrupt(digitalPinToInterrupt(2), speedCalc, RISING); // interrupt called when sensors sends digital 2 high (every wheel rotation)
   start=millis();
   Serial.println("BEE started."); 
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+  pinMode(buttonLeft,INPUT_PULLUP);
+  pinMode(buttonRight,INPUT_PULLUP);
 }
 
 void loop() {
   float sensorValue = analogRead(A0);
   int voltage = round(sensorValue * 5);
-  Serial.print("Speed:");
-  Serial.println(int(speedk));
-  Serial.print("Voltage: ");
-  Serial.println(long(readVcc));
-  Serial.print("Battery: ");
-  Serial.print(voltage);
-  
+  //Serial.print("Speed:");
+  //Serial.println(int(speedk));
+  //Serial.print("Voltage: ");
+  //Serial.println(long(readVcc));
+  //Serial.print("Battery: ");
+  //Serial.print(voltage);
   display.clearDisplay();
   speedValue(int(speedk));    // Print the initial value of speed
   batteryStatus(readVcc); // Print the battery status
   display.display();
+  buttonStateLeft = digitalRead(buttonLeft);
+  if (buttonStateLeft == 0){
+    turnLeft();
+    Serial.print("Turn Left");
+  }
+  buttonStateRight = digitalRead(buttonRight);
+  if (buttonStateRight == 0){
+    turnRight();
+    Serial.print("Turn Right");
+  }
+}
+
+void bootSplash(void) {
+  display.clearDisplay();
+  display.drawBitmap(
+    (display.width()  - LOGO_WIDTH ) / 2,
+    (display.height() - LOGO_HEIGHT) / 2,
+    logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 1);
+  display.display();
+  delay(4000);
 }
 
 void speedCalc()
@@ -86,11 +182,6 @@ void speedValue(int speed) {
   display.setCursor(60,24);
   display.println(F("km/h"));
   display.setCursor(60,0);
-  display.print(long(readVcc));
-  display.println(" mV");
-  display.setCursor(60,10);
-  display.print(long(voltage));
-  display.println(" mV");
 }
 
 void batteryStatus(long voltage) {
