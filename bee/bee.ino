@@ -19,11 +19,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 float start, finished;
 float elapsed, time;
 float circMetric=2.093; // wheel circumference (in meters)
-float speedk;    // holds calculated speed vales in metric and imperial
+float speedk;    // holds calculated speed vales in metric
 long voltage;
+int value;
 boolean buttonStateLeft, buttonStateRight;
 
-
+//measure input voltage
 long readVcc() { long result; // Read 1.1V reference against AVcc 
 ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle 
 ADCSRA |= _BV(ADSC); // Convert 
@@ -34,9 +35,18 @@ result = 1125300L / result; // Back-calculate AVcc in mV
 return result; 
 }
 
+//turn signal left LED
 int redPin= 3;
 int greenPin = 6;
 int bluePin = 9;
+
+//turn signal right LED
+
+//photo resistor
+const int pResistor = A0; // Photoresistor at Arduino analog pin A0
+
+//headlight
+const int headLightPin=12;       // Led pin at Arduino pin 12
 
 static const unsigned char PROGMEM logo_bmp[] = {
   B00000000, B00000011, B00000000, B00000000, B00000000, B00000000, B000000,
@@ -79,24 +89,32 @@ analogWrite(greenPin, greenValue);
 analogWrite(bluePin, blueValue);
 }
 
+void daytimeRunningLight() {
+  setColor(255,255,255);
+}
+
 void turnLeft() {
+  setColor(0,0,0);
+  delay(200);
   for (int i = 0; i <= 5; i++) {
   setColor(0, 255, 0);
   delay (750);
   setColor(0, 0, 0);
   delay (750);
   }
-  setColor(0, 0, 0);
+  daytimeRunningLight();
 }
 
 void turnRight() {
+  setColor(0,0,0);
+  delay(200);
   for (int i = 0; i <= 5; i++) {
   setColor(0, 0, 255);
   delay (750);
   setColor(0, 0, 0);
   delay (750);
   }
-  setColor(0, 0, 0);
+  daytimeRunningLight();
 }
 
 void setup() {
@@ -108,6 +126,10 @@ void setup() {
     for(;;); // Don't proceed, loop forever
   }
   bootSplash();
+  digitalWrite(headLightPin, HIGH);
+  delay(500);
+  digitalWrite(headLightPin, LOW);
+  delay(500);
   attachInterrupt(digitalPinToInterrupt(2), speedCalc, RISING); // interrupt called when sensors sends digital 2 high (every wheel rotation)
   start=millis();
   Serial.println("BEE started."); 
@@ -116,6 +138,7 @@ void setup() {
   pinMode(bluePin, OUTPUT);
   pinMode(buttonLeft,INPUT_PULLUP);
   pinMode(buttonRight,INPUT_PULLUP);
+  daytimeRunningLight();
 }
 
 void loop() {
@@ -141,6 +164,20 @@ void loop() {
     turnRight();
     Serial.print("Turn Right");
   }
+  headLight();
+}
+
+void headLight() {
+  value = analogRead(pResistor);
+  if (value > 25){
+    digitalWrite(headLightPin, LOW);  //Turn led off
+    Serial.print("Turn off the light");
+  }
+  else{
+    digitalWrite(headLightPin, HIGH); //Turn led on
+    Serial.print("Turn on the light");
+  }
+  delay(500); //Small delay
 }
 
 void bootSplash(void) {
@@ -150,13 +187,11 @@ void bootSplash(void) {
     (display.height() - LOGO_HEIGHT) / 2,
     logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 1);
   display.display();
-  delay(4000);
+  delay(2000);
 }
 
 void speedCalc()
 {
-  //Function called by the interrupt
-
   if((millis()-start)>100) // 100 millisec debounce
     {
     //calculate elapsed
