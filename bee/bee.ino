@@ -17,32 +17,27 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define buttonRight 4
 #define NUM_SAMPLES 10
 
-
-float start, finished;
-float elapsed, time;
+//speed measurement
+float start, finished, elapsed, time, speedk;
 float circMetric=2.093; // wheel circumference (in meters)
-float speedk;    // holds calculated speed vales in metric
-//long voltage;
-int value;
-boolean buttonStateLeft, buttonStateRight;
+
+//battery measurement
 int sum = 0;                    // sum of samples taken
 unsigned char sample_count = 0; // current sample number
 float voltage = 0.0;            // calculated voltage
 
-
-//turn signal left LED
+//turn signal
 int redPin= 3;
 int greenPin = 6;
 int bluePin = 9;
-
-//turn signal right LED
-
-//photo resistor
-const int pResistor = A0; // Photoresistor at Arduino analog pin A0
+boolean buttonStateLeft, buttonStateRight;
 
 //headlight
+const int pResistor = A0; // Photoresistor at Arduino analog pin A0
 const int headLightPin=12;       // Led pin at Arduino pin 12
+int value;
 
+//bootsplash image
 static const unsigned char PROGMEM logo_bmp[] = {
   B00000000, B00000011, B00000000, B00000000, B00000000, B00000000, B000000,
   B00000000, B00000011, B11111000, B00000000, B00000000, B00000000, B000000,
@@ -78,6 +73,61 @@ static const unsigned char PROGMEM logo_bmp[] = {
   B00000001, B11111100, B00000000, B00000000, B00000111, B11110000, B000000
 };
 
+void setup() {
+  Serial.begin(115200);
+  Serial.print("BEE Starting...");
+  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+
+  bootSplash();
+  digitalWrite(headLightPin, HIGH);
+  delay(500);
+  digitalWrite(headLightPin, LOW);
+  delay(500);
+  attachInterrupt(digitalPinToInterrupt(2), speedCalc, RISING); // interrupt called when sensors sends digital 2 high (every wheel rotation)
+  start=millis();
+  Serial.println("BEE started."); 
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+  pinMode(buttonLeft,INPUT_PULLUP);
+  pinMode(buttonRight,INPUT_PULLUP);
+  daytimeRunningLight();
+}
+
+void loop() {
+  display.clearDisplay();
+  speedValue(int(speedk));    // Print the initial value of speed
+  while (sample_count < NUM_SAMPLES) {
+        sum += analogRead(A1);
+        sample_count++;
+        delay(10);
+    }
+  voltage = ((float)sum / (float)NUM_SAMPLES * 5.015);
+  batteryStatus(voltage); // Print the battery status
+  sample_count = 0;
+  sum = 0;
+  display.display();
+  
+  buttonStateLeft = digitalRead(buttonLeft);
+  if (buttonStateLeft == 0){
+    turnLeft();
+  }
+  
+  buttonStateRight = digitalRead(buttonRight);
+  if (buttonStateRight == 0){
+    turnRight();
+  }
+  
+  headLight();
+}
+
+
+///subroutines
+
 void setColor(int redValue, int greenValue, int blueValue) {
 analogWrite(redPin, redValue);
 analogWrite(greenPin, greenValue);
@@ -112,76 +162,6 @@ void turnRight() {
   daytimeRunningLight();
 }
 
-void setup() {
-  Serial.begin(115200);
-  Serial.print("BEE Starting...");
-  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
-  }
-  bootSplash();
-  digitalWrite(headLightPin, HIGH);
-  delay(500);
-  digitalWrite(headLightPin, LOW);
-  delay(500);
-  attachInterrupt(digitalPinToInterrupt(2), speedCalc, RISING); // interrupt called when sensors sends digital 2 high (every wheel rotation)
-  start=millis();
-  Serial.println("BEE started."); 
-  pinMode(redPin, OUTPUT);
-  pinMode(greenPin, OUTPUT);
-  pinMode(bluePin, OUTPUT);
-  pinMode(buttonLeft,INPUT_PULLUP);
-  pinMode(buttonRight,INPUT_PULLUP);
-  daytimeRunningLight();
-}
-
-void loop() {
-  float sensorValue = analogRead(A0);
-  int voltage = round(sensorValue * 5);
-  //Serial.print("Speed:");
-  //Serial.println(int(speedk));
-  //Serial.print("Voltage: ");
-  //Serial.println(long(readVcc));
-  //Serial.print("Battery: ");
-  //Serial.print(voltage);
-  display.clearDisplay();
-  speedValue(int(speedk));    // Print the initial value of speed
-  batteryStatus(voltage); // Print the battery status
-  display.display();
-  buttonStateLeft = digitalRead(buttonLeft);
-  if (buttonStateLeft == 0){
-    turnLeft();
-    Serial.print("Turn Left");
-  }
-  buttonStateRight = digitalRead(buttonRight);
-  if (buttonStateRight == 0){
-    turnRight();
-    Serial.print("Turn Right");
-  }
-  headLight();
-
-  // take a number of analog samples and add them up
-    while (sample_count < NUM_SAMPLES) {
-        sum += analogRead(A1);
-        sample_count++;
-        delay(10);
-    }
-    // calculate the voltage
-    // use 5.0 for a 5.0V ADC reference voltage
-    // 5.015V is the calibrated reference voltage
-    voltage = ((float)sum / (float)NUM_SAMPLES * 5.015);
-    // send voltage for display on Serial Monitor
-    // voltage multiplied by 11 when using voltage divider that
-    // divides by 11. 11.132 is the calibrated voltage divide
-    // value
-    Serial.print(voltage);
-    Serial.println (" mV");
-    sample_count = 0;
-    sum = 0;
-  
-}
-
 void headLight() {
   value = analogRead(pResistor);
   if (value < 250){
@@ -207,15 +187,9 @@ void speedCalc()
 {
   if((millis()-start)>100) // 100 millisec debounce
     {
-    //calculate elapsed
     elapsed=millis()-start;
-
-    //reset start
     start=millis();
-  
-    //calculate speed in km/h
     speedk=(3600*circMetric)/elapsed; 
-
     }
 }
 
