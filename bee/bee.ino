@@ -15,25 +15,20 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define LOGO_WIDTH    54
 #define buttonLeft 5
 #define buttonRight 4
+#define NUM_SAMPLES 10
+
 
 float start, finished;
 float elapsed, time;
 float circMetric=2.093; // wheel circumference (in meters)
 float speedk;    // holds calculated speed vales in metric
-long voltage;
+//long voltage;
 int value;
 boolean buttonStateLeft, buttonStateRight;
+int sum = 0;                    // sum of samples taken
+unsigned char sample_count = 0; // current sample number
+float voltage = 0.0;            // calculated voltage
 
-//measure input voltage
-long readVcc() { long result; // Read 1.1V reference against AVcc 
-ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle 
-ADCSRA |= _BV(ADSC); // Convert 
-while (bit_is_set(ADCSRA,ADSC)); 
-result = ADCL; 
-result |= ADCH<<8; 
-result = 1125300L / result; // Back-calculate AVcc in mV 
-return result; 
-}
 
 //turn signal left LED
 int redPin= 3;
@@ -152,7 +147,7 @@ void loop() {
   //Serial.print(voltage);
   display.clearDisplay();
   speedValue(int(speedk));    // Print the initial value of speed
-  batteryStatus(readVcc); // Print the battery status
+  batteryStatus(voltage); // Print the battery status
   display.display();
   buttonStateLeft = digitalRead(buttonLeft);
   if (buttonStateLeft == 0){
@@ -165,17 +160,35 @@ void loop() {
     Serial.print("Turn Right");
   }
   headLight();
+
+  // take a number of analog samples and add them up
+    while (sample_count < NUM_SAMPLES) {
+        sum += analogRead(A1);
+        sample_count++;
+        delay(10);
+    }
+    // calculate the voltage
+    // use 5.0 for a 5.0V ADC reference voltage
+    // 5.015V is the calibrated reference voltage
+    voltage = ((float)sum / (float)NUM_SAMPLES * 5.015);
+    // send voltage for display on Serial Monitor
+    // voltage multiplied by 11 when using voltage divider that
+    // divides by 11. 11.132 is the calibrated voltage divide
+    // value
+    Serial.print(voltage);
+    Serial.println (" mV");
+    sample_count = 0;
+    sum = 0;
+  
 }
 
 void headLight() {
   value = analogRead(pResistor);
-  if (value > 25){
-    digitalWrite(headLightPin, LOW);  //Turn led off
-    Serial.print("Turn off the light");
+  if (value < 250){
+    digitalWrite(headLightPin, HIGH);  //Turn led off
   }
   else{
-    digitalWrite(headLightPin, HIGH); //Turn led on
-    Serial.print("Turn on the light");
+    digitalWrite(headLightPin, LOW); //Turn led on
   }
   delay(500); //Small delay
 }
