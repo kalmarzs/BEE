@@ -166,10 +166,12 @@ void turnRight() {
 void headLight() {
   value = analogRead(pResistor);
   if (value < 250){
-    digitalWrite(headLightPin, HIGH);  //Turn led off
+    digitalWrite(headLightPin, HIGH);
+    setColor(0,0,0);
   }
   else{
-    digitalWrite(headLightPin, LOW); //Turn led on
+    digitalWrite(headLightPin, LOW);
+    daytimeRunningLight();
   }
   delay(500); //Small delay
 }
